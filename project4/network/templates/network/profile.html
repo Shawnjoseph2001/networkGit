@@ -1,0 +1,97 @@
+{% extends "network/layout.html" %}
+{% load dict_filter %}
+{% load static %}
+
+{% block body %}
+    <div class="container">
+        <!-- User information section -->
+        <div class="row justify-content-center mt-3">
+            <div class="col-6 text-center">
+                <h5 class="mb-3">User {{ username }}</h5>
+                <div class="d-flex justify-content-between mb-3">
+                    <h6>Followers: {{ followers }}</h6>
+                    <h6>Following: {{ following }}</h6>
+                </div>
+
+                <!-- Follow / Unfollow Button -->
+                {% if user_following %}
+                    <form action="{% url 'unfollow' username=username %}" class="mx-auto">
+                        {% csrf_token %}
+                        <input class="btn btn-primary" type="submit" value="Unfollow User">
+                    </form>
+                {% else %}
+                    <form action="{% url 'follow' username=username %}" class="mx-auto">
+                        {% csrf_token %}
+                        <input class="btn btn-primary" type="submit" value="Follow User">
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Posts list -->
+        <ul class="list-unstyled">
+            {% for post in posts %}
+                <li class="border-bottom mb-3 pb-3">
+                    <div>
+                        <a href="{% url 'user_rd' username=post.user %}" class="font-weight-bold text-dark">{{ post.user }}</a>
+                    </div>
+                    <div class="mt-2">
+                        <p id="post-content-{{post.id}}">{{ post.content }}</p>
+                    </div>
+
+                    <!-- Edit button for post owner -->
+                    {% if user.is_authenticated and user == post.user %}
+                        <div class="edit-panel mt-2">
+                            <button class="btn btn-secondary btn-sm edit-button" id="edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Edit post</button>
+                            <textarea class="form-control mt-2 edit-content" id="edit-content-{{ post.id }}" data-post-id="{{ post.id }}">{{ post.content }}</textarea>
+                            <button class="btn btn-primary btn-sm mt-2 submit-edit-button" id="submit-edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Save post</button>
+                        </div>
+                    {% endif %}
+
+                    <!-- Post metadata and like button -->
+                    <small class="text-muted">{{ post.timestamp }}</small>
+                    <div class="d-flex align-items-center mt-2">
+                        <div id="like-count-{{ post.id }}" class="mr-2">
+                            Like Count: {{ likes|get_item:post.id}}
+                        </div>
+                        {% if user.is_authenticated %}
+                            {% if post.id in liked_posts %}
+                                <button class="btn btn-primary btn-sm like-button" id="like-button-{{ post.id }}" data-post-id="{{ post.id }}" data-liked="true">Unlike post</button>
+                            {% else %}
+                                <button class="btn btn-outline-primary btn-sm like-button" id="like-button-{{ post.id }}" data-post-id="{{ post.id }}" data-liked="false">Like post</button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <!-- Pagination -->
+        <nav aria-label="Page navigation example" class="my-4">
+            <ul class="pagination justify-content-center">
+                {% if prev_page != "0" %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ prev_page }}">Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                {% endif %}
+                {% if next_page != "0" %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ next_page }}">Next</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+
+    {% block script %}
+        <script src="{% static 'network/script.js' %}"></script>
+    {%  endblock %}
+{% endblock %}

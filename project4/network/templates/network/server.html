@@ -1,0 +1,76 @@
+{% extends "network/layout.html" %}
+{% load static %}
+
+{% block body %}
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <h1>Servers</h1>
+                {% if user.is_superuser %}
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="serverIp">Server IP:</label>
+                            <input type="text" class="form-control" id="serverIp" name="ip" placeholder="Enter server IP" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="serverPort">Server Port:</label>
+                            <input type="number" class="form-control" id="serverPort" name="port" placeholder="Enter server port" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Server</button>
+                    </form>
+                {%  endif %}
+                <h2 class="mt-5">Existing Servers</h2>
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th scope="col">Server IP</th>
+                        <th scope="col">Server Port</th>
+                        <th scope="col">Block / Unblock</th>
+                        {%  if user.is_superuser %}
+                            <th scope="col">Delete</th>
+                        {%  endif %}
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for server in servers %}
+                        <tr>
+                            <td>{{ server.ip }}</td>
+                            <td>{{ server.port }}</td>
+                            {%  if user.is_authenticated %}
+                                <td>
+                                    {% if server.id in blocklist %}
+                                        <form method="POST" action="{% url 'unblock_server' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="ip" value="{{ server.ip }}">
+                                            <input type="hidden" name="port" value="{{ server.port }}">
+                                            <button type="submit" class="btn btn-success">Unblock</button>
+                                        </form>
+                                    {% else %}
+                                        <form method="POST" action="{% url 'block_server' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="ip" value="{{ server.ip }}">
+                                            <input type="hidden" name="port" value="{{ server.port }}">
+                                            <button type="submit" class="btn btn-danger">Block</button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                            {% if user.is_superuser %}
+                                <td>
+                                    <form method="POST" action="{% url 'delete_server' %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="ip" value="{{ server.ip }}">
+                                        <input type="hidden" name="port" value="{{ server.port }}">
+                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                    </form>
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{%  endblock %}
