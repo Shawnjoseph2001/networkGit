@@ -1,7 +1,9 @@
 import json
+import requests
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.core import serializers
 from django.core.paginator import Paginator, Page
 from django.db import IntegrityError
 from django.http import HttpResponseRedirect
@@ -13,9 +15,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import (
     User,
     Follower,
-    Like,
     Post,
-    Comment,
     ForeignLike,
     ForeignComment,
     ForeignServer,
@@ -52,15 +52,15 @@ def following(request, page_num):
 
     # Query all posts that the current user liked
     liked_posts = list(
-        Like.objects.filter(user=request.user).values_list("post__id", flat=True)
+        ForeignLike.objects.filter(user=request.user).values_list("post__id", flat=True)
     )
 
     # Create a dictionary with post id as key and number of likes as value
     likes = {}
     comments = {}
     for i in Post.objects.all():
-        likes[i.id] = len(Like.objects.filter(post=i))
-        comments[i.id] = Comment.objects.filter(post=i)
+        likes[i.id] = len(ForeignLike.objects.filter(post=i))
+        comments[i.id] = ForeignComment.objects.filter(post=i)
 
     # Query posts from following users
     following_posts = list(
@@ -117,7 +117,9 @@ def all_posts(request, page_num):
             )
         )
         liked_posts = list(
-            Like.objects.filter(user=request.user).values_list("post__id", flat=True)
+            ForeignLike.objects.filter(user=request.user).values_list(
+                "post__id", flat=True
+            )
         )
 
     # Query all posts and handle pagination
@@ -132,8 +134,8 @@ def all_posts(request, page_num):
 
     # Count likes for each post
     for i in Post.objects.all():
-        likes[i.id] = len(Like.objects.filter(post=i))
-        comments[i.id] = Comment.objects.filter(post=i)
+        likes[i.id] = len(ForeignLike.objects.filter(post=i))
+        comments[i.id] = ForeignComment.objects.filter(post=i)
 
     # Handle pagination
     next_page = "0"
@@ -225,29 +227,57 @@ def post(request):
         return render(request, "network/post.html")
 
 
-def user(request, username, page_num):
+def user(request, username, server_id, page_num):
     """Handles requests for a specific user's posts, along with their profile info"""
-    # Fetch the requested user or return 404 if not found
-    request_user = get_object_or_404(User, username=username)
-    # Fetch the posts made by the requested user, ordered by timestamp
-    posts = Post.objects.filter(user=request_user).order_by("-timestamp")
-    # Fetch the count of followers and following users
-    followers = len(Follower.objects.filter(following_user=request_user))
-    following_users = len(Follower.objects.filter(followee_user=request_user))
+    server = get_object_or_404(ForeignServer, id=server_id)
     # Initialize variables for authenticated users
     user_following = False
     liked_posts = []
-    likes = {}
-    # Count likes for each post
-    for i in Post.objects.all():
-        likes[i.id] = len(Like.objects.filter(post=i))
     if request.user.is_authenticated:
         user_following = Follower.objects.filter(
-            following_user=request.user, followee_user=request_user
+            following_user=request.user,
+            followee_user=username,
+            server=get_object_or_404(ForeignServer, ip="local"),
         ).exists()
         liked_posts = list(
-            Like.objects.filter(user=request.user).values_list("post__id", flat=True)
+            ForeignLike.objects.filter(user=request.user).values_list(
+                "post__id", flat=True
+            )
         )
+    likes = {}
+    followers: int
+    following_users: int
+    posts: list
+    if server.ip == "local":
+        # TODO: Add block button
+        # Fetch the requested user or return 404 if not found
+        request_user = get_object_or_404(User, username=username)
+        # Fetch the posts made by the requested user, ordered by timestamp
+        posts = Post.objects.filter(user=request_user).order_by("-timestamp")
+        # Fetch the count of local followers and following users
+        followers = len(Follower.objects.filter(following_user=request_user))
+        following_users = len(Follower.objects.filter(followee_user=request_user))
+        # Count likes for each post
+        for i in Post.objects.all():
+            likes[i.id] = len(ForeignLike.objects.filter(post=i))
+    else:
+        try:
+            result = requests.get(
+                url="http://"
+                + server.ip
+                + ":"
+                + server.port
+                + "/federation/user/"
+                + username,
+                timeout=5,
+                data=json.dumps({"port": request.META["SERVER_PORT"]}),
+            )
+            json_response = json.loads(result.content)
+            followers = json_response["followers"]
+            following_users = json_response["following_users"]
+            posts = json_response["posts"]
+        except requests.exceptions.Timeout:
+            return HttpResponseRedirect(reverse("index"))
     # Handle pagination
     next_page = "0"
     prev_page = "0"
@@ -257,6 +287,7 @@ def user(request, username, page_num):
             "user",
             args=(
                 username,
+                server_id,
                 page_num - 1,
             ),
         )
@@ -265,6 +296,7 @@ def user(request, username, page_num):
             "user",
             args=(
                 username,
+                server_id,
                 page_num + 1,
             ),
         )
@@ -288,35 +320,96 @@ def user(request, username, page_num):
 
 @csrf_exempt
 @login_required
-def like(request, like_post):
+def like(request, like_post, server_id):
     """Handles like action for a post."""
-    like_post = get_object_or_404(Post, id=like_post)
-    if len(Like.objects.filter(post=like_post, user=request.user)) == 0:
-        Like.objects.create(post=like_post, user=request.user)
+    if server_id == "local":
+        like_post = get_object_or_404(Post, id=like_post)
+        if len(ForeignLike.objects.filter(post=like_post, user=request.user)) == 0:
+            ForeignLike.objects.create(post=like_post, user=request.user)
+            return JsonResponse(
+                {
+                    "likeCount": len(ForeignLike.objects.filter(post=like_post)),
+                    "success": True,
+                }
+            )
         return JsonResponse(
             data={
-                "likeCount": len(Like.objects.filter(post=like_post)),
-                "success": True,
-            },
-            status=200,
+                "likeCount": len(ForeignLike.objects.filter(post=like_post)),
+                "success": False,
+            }
         )
-    return JsonResponse(
-        data={"likeCount": len(Like.objects.filter(post=like_post)), "success": False},
-        status=200,
-    )
+    else:
+        server = get_object_or_404(ForeignServer, id=server_id)
+        try:
+            result = requests.get(
+                "http://"
+                + server.ip
+                + ":"
+                + server.port
+                + "/federation/like/"
+                + like_post,
+                timeout=5,
+                data=json.dumps({"port": request.META["SERVER_PORT"]}),
+            )
+            if result.status_code == 200:
+                return JsonResponse(json.loads(result.content))
+            else:
+                return JsonResponse(
+                    {
+                        "success": False,
+                    }
+                )
+        except requests.exceptions.Timeout:
+            return JsonResponse(
+                {
+                    "success": False,
+                }
+            )
 
 
 @csrf_exempt
 @login_required
-def unlike(request, like_post):
+def unlike(request, like_post, server_id):
     """Handles unlike action for a post."""
-    like_post = get_object_or_404(Post, id=like_post)
-    like_to_delete = get_object_or_404(Like, user=request.user, post=like_post)
-    like_to_delete.delete()
-    return JsonResponse(
-        data={"likeCount": len(Like.objects.filter(post=like_post)), "success": True},
-        status=200,
-    )
+    if server_id == "local":
+        like_post = get_object_or_404(Post, id=like_post)
+        like_to_delete = get_object_or_404(
+            ForeignLike, user=request.user, post=like_post
+        )
+        like_to_delete.delete()
+        return JsonResponse(
+            data={
+                "likeCount": len(ForeignLike.objects.filter(post=like_post)),
+                "success": True,
+            }
+        )
+    else:
+        server = get_object_or_404(ForeignServer, id=server_id)
+        try:
+            result = requests.get(
+                "http://"
+                + server.ip
+                + ":"
+                + server.port
+                + "/federation/unlike/"
+                + like_post,
+                timeout=5,
+                data=json.dumps({"port": request.META["SERVER_PORT"]}),
+            )
+            if result.status_code == 200:
+                return JsonResponse(json.loads(result.content))
+            else:
+                return JsonResponse(
+                    {
+                        "success": False,
+                    }
+                )
+        except requests.exceptions.Timeout:
+            return JsonResponse(
+                {
+                    "success": False,
+                }
+            )
 
 
 @csrf_exempt
@@ -328,31 +421,28 @@ def edit(request, edit_post):
         json_data = json.loads(request.body)
         edit_post.content = json_data["content"]
         edit_post.save()
-    return JsonResponse({"content": edit_post.content})
+    return JsonResponse({"content": str(edit_post.content)})
 
 
 @login_required
-def follow(request, username):
+def follow(request, username, server_id):
     """Allows the current user to follow another user."""
-    follow_user = get_object_or_404(User, username=username)
-    if (
-        len(
-            Follower.objects.filter(
-                following_user=follow_user, followee_user=request.user
-            )
-        )
-        == 0
-    ):
-        Follower.objects.create(following_user=follow_user, followee_user=request.user)
+    Follower.objects.get_or_create(
+        following_user=get_object_or_404(User, username=username),
+        followee_user=request.user,
+        server=get_object_or_404(ForeignServer, id=server_id),
+    )
     return HttpResponseRedirect(reverse("index"))
 
 
 @login_required
-def unfollow(request, username):
+def unfollow(request, username, server_id):
     """Allows the current user to unfollow another user."""
-    follow_user = get_object_or_404(User, username=username)
     follower_to_delete = get_object_or_404(
-        Follower, following_user=follow_user, followee_user=request.user
+        Follower,
+        following_user=get_object_or_404(User, username=username),
+        followee_user=request.user,
+        server=get_object_or_404(ForeignServer, id=server_id),
     )
     follower_to_delete.delete()
     return HttpResponseRedirect(reverse("index"))
@@ -360,43 +450,58 @@ def unfollow(request, username):
 
 def user_rd(request, username):
     """User redirect"""
-    return redirect("user", username=username, page_num=1)
+    return redirect("user", username=username, server_id="local", page_num=1)
 
 
 @login_required
-def comment(request, post_id):
+def comment(request, post_id, server_id):
     """Create post comment"""
     if request.method == "POST":
-        Comment.objects.create(
-            content=request.POST["content"],
-            user=request.user,
-            post=get_object_or_404(Post, id=post_id),
-        )
+        server = get_object_or_404(ForeignServer, id=server_id)
+        if server_id == "local":
+            ForeignComment.objects.create(
+                content=request.POST["content"],
+                user=request.user,
+                post=get_object_or_404(Post, id=post_id),
+                server=server,
+            )
+        else:
+            try:
+                requests.post(
+                    "http://"
+                    + server.ip
+                    + ":"
+                    + server.port
+                    + "/federation/comment/"
+                    + post_id,
+                    timeout=5,
+                    data=json.dumps(
+                        {
+                            "username": request.user.username,
+                            "content": request.POST["content"],
+                            "port": request.META["SERVER_PORT"],
+                        }
+                    ),
+                )
+            except requests.exceptions.Timeout:
+                return HttpResponseRedirect(reverse("index"))
     return HttpResponseRedirect(reverse("index"))
 
 
-def federate(request):
-    if request.method == "POST":
-        server = request.get_host()
-        port = request.get_port()
-        ForeignServer.objects.get_or_create(ip=server, port=port)
-        return JsonResponse({"Success": True})
-
-
+@csrf_exempt
 def federated_comment(request, post_id):
     if request.method == "POST":
-        server = request.get_host()
-        port = request.get_port()
         json_data = json.loads(request.body)
         createdComment = ForeignComment.objects.create(
             content=json_data["content"],
-            user=request.user,
+            user=json_data["username"],
             post=get_object_or_404(Post, id=post_id),
             server=get_object_or_404(
-                ForeignServer, server=request.get_host(), port=request.get_host()
+                ForeignServer, server=request.get_host(), port=json_data["port"]
             ),
         )
-        return JsonResponse({"Comment": createdComment})
+        return JsonResponse({"Comment": str(createdComment)})
+    return JsonResponse({})
 
 
 @csrf_exempt
@@ -404,7 +509,7 @@ def federated_like(request, post_id):
     if request.method == "POST":
         json_data = json.loads(request.body)
         server = get_object_or_404(
-            ForeignServer, ip=request.get_host(), port=request.get_port()
+            ForeignServer, ip=request.get_host(), port=json_data["port"]
         )
         ForeignLike.objects.create(
             server=server,
@@ -412,6 +517,33 @@ def federated_like(request, post_id):
             post=get_object_or_404(Post, id=post_id),
         )
         return JsonResponse({"Like": "Success"})
+
+
+@csrf_exempt
+def federated_get_likes(request):
+    json_data = json.loads(request.body)
+    server = get_object_or_404(
+        ForeignServer, ip=request.get_host(), port=json_data["port"]
+    )
+    likes = ForeignLike.objects.all()
+    return JsonResponse({"Likes": serializers.serialize("json", (likes,))})
+
+
+@csrf_exempt
+def federated_unlike(request, post_id):
+    if request.method == "POST":
+        json_data = json.loads(request.body)
+        server = get_object_or_404(
+            ForeignServer, ip=request.get_host(), port=json_data["port"]
+        )
+        like_to_delete = get_object_or_404(
+            ForeignLike,
+            server=server,
+            username=json_data["username"],
+            post=get_object_or_404(Post, id=post_id),
+        )
+        like_to_delete.delete()
+    return JsonResponse({"Like": "Success"})
 
 
 @login_required
@@ -466,3 +598,8 @@ def unblock_server(request):
         )
         server_to_delete.delete()
     return HttpResponseRedirect(reverse("add_servers"))
+
+
+@csrf_exempt
+def federated_user(request, username):
+    user = get_object_or_404(User, username=username)
