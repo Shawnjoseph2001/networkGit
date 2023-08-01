@@ -129,7 +129,7 @@ def all_posts(request, page_num):
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
     for i in ForeignServer.objects.all():
-        if i not in blocked_servers:
+        if i not in blocked_servers and i.ip != "local":
             try:
                 result = requests.get(
                     "http://" + i.ip + ":" + str(i.port) + "/federation/posts",
@@ -575,6 +575,7 @@ def add_servers(request):
             "blocklist": ForeignBlocklist.objects.filter(user=request.user).values_list(
                 "server", flat=True
             ),
+            "server_id": get_object_or_404(ForeignServer, ip="local").id,
         },
     )
 
