@@ -22,28 +22,28 @@
             {% for post in posts %}
                 <li class="border-bottom mb-3 pb-3">
                     <div>
-                        <a href="{% url 'user_rd' username=post.user %}" class="font-weight-bold text-dark">{{ post.user }}</a>
+                        <a href="{% url 'user_rd' username=post|get_item:"username" server_id=post|get_item:"server_id" %}" class="font-weight-bold text-dark">{{ post|get_item:"username" }}</a>
                     </div>
                     <div class="mt-2">
-                        <p id="post-content-{{post.id}}">{{ post.content }}</p>
+                        <p id="post-content-{{post|get_item:"id"}}">{{ post|get_item:"content" }}</p>
                     </div>
 
                     <!-- Edit and follow/unfollow buttons for authenticated users -->
-                    {% if user.is_authenticated %}
-                        {% if user == post.user %}
+                    {% if user.uis_authenticated %}
+                        {% if user.username == post|get_item:"user" and post|get_item:"server" == server_id %}
                             <div class="edit-panel mt-2">
-                                <button class="btn btn-secondary btn-sm edit-button" id="edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Edit post</button>
-                                <textarea class="form-control mt-2 edit-content" id="edit-content-{{ post.id }}" data-post-id="{{ post.id }}">{{ post.content }}</textarea>
-                                <button class="btn btn-primary btn-sm mt-2 submit-edit-button" id="submit-edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Save post</button>
+                                <button class="btn btn-secondary btn-sm edit-button" id="edit-button-{{ post|get_item:"id" }}" data-post-id="{{ post|get_item:"id" }}">Edit post</button>
+                                <textarea class="form-control mt-2 edit-content" id="edit-content-{{ post|get_item:"id" }}" data-post-id="{{ post|get_item:"id" }}">{{ post.content }}</textarea>
+                                <button class="btn btn-primary btn-sm mt-2 submit-edit-button" id="submit-edit-button-{{ post|get_item:"id" }}" data-post-id="{{ post|get_item:"id" }}">Save post</button>
                             </div>
                         {% endif %}
                         {% if post.user.username in following_users %}
-                            <form action="{% url 'unfollow' username=post.user %}" class="mt-2">
+                            <form action="{% url 'unfollow' username=post|get_item:"user" server_id=post|get_item:"server_id" %}" class="mt-2">
                                 {% csrf_token %}
                                 <input class="btn btn-outline-primary btn-sm" type="submit" value="Unfollow User">
                             </form>
                         {% else %}
-                            <form action="{% url 'follow' username=post.user %}" class="mt-2">
+                            <form action="{% url 'follow' username=post|get_item:"user" server_id=post|get_item:"server_id" %}" class="mt-2">
                                 {% csrf_token %}
                                 <input class="btn btn-outline-primary btn-sm" type="submit" value="Follow User">
                             </form>
@@ -51,34 +51,34 @@
                     {% endif %}
 
                     <!-- Post metadata and like button -->
-                    <small class="text-muted">{{ post.timestamp }}</small>
+                    <small class="text-muted">{{ post|get_item:"timestamp" }}</small>
                     <div class="d-flex align-items-center mt-2">
-                        <div id="like-count-{{ post.id }}" class="mr-2">
-                            Like Count: {{ likes|get_item:post.id}}
+                        <div id="like-count-{{ post|get_item:"id" }}" class="mr-2">
+                            Like Count: {{ post|get_item:"likes"}}
                         </div>
                         {% if user.is_authenticated %}
-                            {% if post.id in liked_posts %}
-                                <button class="btn btn-primary btn-sm like-button" id="like-button-{{ post.id }}" data-post-id="{{ post.id }}" data-liked="true">Unlike post</button>
+                            {% if post|get_item:"id" in liked_posts %}
+                                <button class="btn btn-primary btn-sm like-button" id="like-button-{{ post|get_item:"id" }}" data-post-id="{{ post|get_item:"id" }}" data-liked="true">Unlike post</button>
                             {% else %}
-                                <button class="btn btn-outline-primary btn-sm like-button" id="like-button-{{ post.id }}" data-post-id="{{ post.id }}" data-liked="false">Like post</button>
+                                <button class="btn btn-outline-primary btn-sm like-button" id="like-button-{{ post|get_item:"id" }}" data-post-id="{{ post|get_item:"id" }}" data-liked="false">Like post</button>
                             {% endif %}
                         {% endif %}
                     </div>
-                    {% if user == post.user %}
+                    {% if user == post|get_item:"user" %}
                         <div class="comment-panel mt-2">
-                            <button class="btn btn-secondary btn-sm comment-button" id="comment-button-{{ post.id }}" data-post-id="{{ post.id }}">Leave Comment</button>
-                            <form action="{% url 'comment' post_id=post.id  %}"  class="mt-2 comment-form" method="POST">
+                            <button class="btn btn-secondary btn-sm comment-button" id="comment-button-{{ post|get_item:"id" }}" data-post-id="{{ post|get_item:"id" }}">Leave Comment</button>
+                            <form action="{% url 'comment' post_id=post|get_item:"id" server_id=post|get_item:"server_id"  %}"  class="mt-2 comment-form" method="POST">
                                 {%  csrf_token %}
-                                <textarea class="form-control mt-2 comment-content" id="comment-content-{{ post.id }}" name="content"></textarea>
-                                <button class="btn btn-primary btn-sm mt-2 submit-comment-button" id="submit-comment-button-{{ post.id }}" data-post-id="{{ post.id }}" type="submit">Save Comment</button>
+                                <textarea class="form-control mt-2 comment-content" id="comment-content-{{ post|get_item:"id" }}" name="content"></textarea>
+                                <button class="btn btn-primary btn-sm mt-2 submit-comment-button" id="submit-comment-button-{{ post|get_item:"id" }}" data-post-id="{{ post|get_item:"id" }}" type="submit">Save Comment</button>
                             </form>
                         </div>
                     {% endif %}
-                    {% for comment in comments|get_item:post.id %}
+                    {% for comment in post|get_item:"comments" %}
                         <div class="mt-2 border-top pt-2">
-                            <a href="{% url 'user_rd' username=comment.user %}" class="font-weight-bold text-dark">{{ comment.user }}</a>
-                            <p id="comment-content-{{comment.id}}">{{ comment.content }}</p>
-                            <small class="text-muted">{{ comment.timestamp }}</small>
+                            <a href="{% url 'user_rd' username=post|get_item:"user" server_id=post|get_item:"server_id" %}" class="font-weight-bold text-dark">{{ comment|get_item:"user" }}</a>
+                            <p id="comment-content-{{comment|get_item:"user"}}">{{ comment|get_item:"content" }}</p>
+                            <small class="text-muted">{{ comment|get_item:"timestamp" }}</small>
                             <!-- Edit button for comment if the user is the owner -->
                         </div>
                     {% endfor %}

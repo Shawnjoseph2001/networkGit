@@ -15,12 +15,12 @@
 
                 <!-- Follow / Unfollow Button -->
                 {% if user_following %}
-                    <form action="{% url 'unfollow' username=username %}" class="mx-auto">
+                    <form action="{% url 'unfollow' username=username server_id=server_id %}" class="mx-auto">
                         {% csrf_token %}
                         <input class="btn btn-primary" type="submit" value="Unfollow User">
                     </form>
                 {% else %}
-                    <form action="{% url 'follow' username=username %}" class="mx-auto">
+                    <form action="{% url 'follow' username=username server_id=server_id %}" class="mx-auto">
                         {% csrf_token %}
                         <input class="btn btn-primary" type="submit" value="Follow User">
                     </form>
@@ -33,14 +33,14 @@
             {% for post in posts %}
                 <li class="border-bottom mb-3 pb-3">
                     <div>
-                        <a href="{% url 'user_rd' username=post.user %}" class="font-weight-bold text-dark">{{ post.user }}</a>
+                        <a href="{% url 'user_rd' username=post|get_item:"username" server_id=server_id %}" class="font-weight-bold text-dark">{{ post|get_item:"username" }}</a>
                     </div>
                     <div class="mt-2">
-                        <p id="post-content-{{post.id}}">{{ post.content }}</p>
+                        <p id="post-content-{{post|get_item:"id"}}">{{ post|get_item:"content" }}</p>
                     </div>
 
                     <!-- Edit button for post owner -->
-                    {% if user.is_authenticated and user == post.user %}
+                    {% if user.is_authenticated and username == post.user.username and server_id %}
                         <div class="edit-panel mt-2">
                             <button class="btn btn-secondary btn-sm edit-button" id="edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Edit post</button>
                             <textarea class="form-control mt-2 edit-content" id="edit-content-{{ post.id }}" data-post-id="{{ post.id }}">{{ post.content }}</textarea>
@@ -52,7 +52,7 @@
                     <small class="text-muted">{{ post.timestamp }}</small>
                     <div class="d-flex align-items-center mt-2">
                         <div id="like-count-{{ post.id }}" class="mr-2">
-                            Like Count: {{ likes|get_item:post.id}}
+                            Like Count: {{ post|get_item:"likes"}}
                         </div>
                         {% if user.is_authenticated %}
                             {% if post.id in liked_posts %}

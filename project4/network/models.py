@@ -33,7 +33,7 @@ class Follower(models.Model):
 class ForeignLike(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     server = models.ForeignKey(ForeignServer, on_delete=models.CASCADE)
-    username = models.TextField()
+    user = models.TextField()
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
 
 
