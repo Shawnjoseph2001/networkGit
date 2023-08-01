@@ -45,4 +45,5 @@ urlpatterns = [
     path("federation/delete_server", views.delete_server, name="delete_server"),
     path("federation/block_server", views.block_server, name="block_server"),
     path("federation/unblock_server", views.unblock_server, name="unblock_server"),
+    path("federation/user/<str:username>", views.federated_user, name="federated_user"),
 ]

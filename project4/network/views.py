@@ -284,7 +284,7 @@ def user(request, username, server_id, page_num):
                 url="http://"
                 + server.ip
                 + ":"
-                + server.port
+                + str(server.port)
                 + "/federation/user/"
                 + username,
                 timeout=5,
@@ -294,7 +294,7 @@ def user(request, username, server_id, page_num):
             followers = json_response["followers"]
             following_users = json_response["following_users"]
             posts = json_response["posts"]
-        except requests.exceptions.Timeout:
+        except:
             return HttpResponseRedirect(reverse("index"))
     # Handle pagination
     next_page = "0"
