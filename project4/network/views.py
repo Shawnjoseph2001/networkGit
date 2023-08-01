@@ -128,17 +128,22 @@ def all_posts(request, page_num):
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
+        i["server_name"] = "local"
+        i["server_port"] = ""
     for i in ForeignServer.objects.all():
         if i not in blocked_servers and i.ip != "local":
             try:
                 result = requests.get(
                     "http://" + i.ip + ":" + str(i.port) + "/federation/posts",
                     timeout=5,
-                    data=json.dumps({"port": request.META["SERVER_PORT"]}),
                 )
                 if result.status_code == 200:
                     json_data = json.loads(result.content)
-                    post_list += json_data["posts"]
+                    for j in json_data["posts"]:
+                        j["server_name"] = str(i.ip)
+                        j["server_port"] = str(i.port)
+                        j["server_id"] = str(i.id)
+                post_list += json_data["posts"]
             except:
                 pass
 
@@ -239,6 +244,7 @@ def post(request):
 
 def user(request, username, server_id, page_num):
     """Handles requests for a specific user's posts, along with their profile info"""
+    print()
     server = get_object_or_404(ForeignServer, id=server_id)
     # Initialize variables for authenticated users
     user_following = False
@@ -640,11 +646,9 @@ def federated_user(request, username):
 
 @csrf_exempt
 def federated_posts(request):
-    get_object_or_404(ForeignServer, ip=request.get_host(), port=request.get_port())
     local_server = get_object_or_404(ForeignServer, ip="local")
     post_list = list(Post.objects.all().order_by("-timestamp").values())
     for i in post_list:
-        i["server_id"] = str(local_server.id)
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)

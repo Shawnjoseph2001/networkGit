@@ -22,7 +22,7 @@
             {% for post in posts %}
                 <li class="border-bottom mb-3 pb-3">
                     <div>
-                        <a href="{% url 'user_rd' username=post|get_item:"username" server_id=post|get_item:"server_id" %}" class="font-weight-bold text-dark">{{ post|get_item:"username" }}</a>
+                        <a href="{% url 'user_rd' username=post|get_item:"username" server_id=post|get_item:"server_id" %}" class="font-weight-bold text-dark">{{ post|get_item:"username" }}@{{ post|get_item:"server_name" }}:{{ post|get_item:"server_port" }}</a>
                     </div>
                     <div class="mt-2">
                         <p id="post-content-{{post|get_item:"id"}}">{{ post|get_item:"content" }}</p>
