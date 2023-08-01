@@ -20,6 +20,7 @@ urlpatterns = [
     path("following/<int:page_num>", views.following, name="following"),
     path("all/<int:page_num>", views.all_posts, name="all"),
     path("federation/get_likes", views.federated_get_likes, name="federated_get_likes"),
+    path("federation/posts", views.federated_posts, name="federated_posts"),
     path(
         "comment/<str:server_id>/<str:post_id>",
         views.comment,
