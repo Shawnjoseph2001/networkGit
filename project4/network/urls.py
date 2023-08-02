@@ -46,6 +46,16 @@ urlpatterns = [
     path("federation/add_servers", views.add_servers, name="add_servers"),
     path("federation/delete_server", views.delete_server, name="delete_server"),
     path("federation/block_server", views.block_server, name="block_server"),
+    path(
+        "federation/block_user/<str:server_id>/<str:username>",
+        views.block_user,
+        name="block_user",
+    ),
+    path(
+        "federation/unblock_user/<str:server_id>/<str:username>",
+        views.unblock_user,
+        name="block_user",
+    ),
     path("federation/unblock_server", views.unblock_server, name="unblock_server"),
     path("federation/user/<str:username>", views.federated_user, name="federated_user"),
 ]

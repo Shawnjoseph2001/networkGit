@@ -20,6 +20,7 @@ from .models import (
     ForeignComment,
     ForeignServer,
     ForeignBlocklist,
+    ForeignUserBlocklist,
 )
 
 
@@ -150,6 +151,7 @@ def all_posts(request, page_num):
     """
     following_users = []
     blocked_servers = []
+    blocked_users = []
     if request.user.is_authenticated:
         following_users = list(
             Follower.objects.filter(followee_user=request.user.username)
@@ -163,12 +165,20 @@ def all_posts(request, page_num):
     # Query all posts and handle pagination
     local_server = get_object_or_404(ForeignServer, ip="local")
     # Count likes for each post
-    post_list = list(Post.objects.all().order_by("-timestamp").values())
-    for i in post_list:
+    initial_post_list = list(Post.objects.filter().order_by("-timestamp").values())
+    post_list = []
+    for i in initial_post_list:
+        i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
+        if (
+            request.user.is_authenticated
+            and ForeignUserBlocklist.objects.filter(
+                user=request.user, server=local_server, blocked_user=i["username"]
+            ).exists()
+        ):
+            continue
         i["server_id"] = str(local_server.id)
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
-        i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
         i["server_name"] = "local"
         i["server_port"] = ""
         i["liked"] = ForeignLike.objects.filter(
@@ -182,6 +192,7 @@ def all_posts(request, page_num):
             ).exists()
         else:
             i["following"] = False
+        post_list.append(i)
     for i in ForeignServer.objects.all():
         if i.id not in blocked_servers and i.ip != "local":
             try:
@@ -197,6 +208,7 @@ def all_posts(request, page_num):
                 )
                 if result.status_code == 200:
                     json_data = json.loads(result.content)
+                    append_posts = []
                     for j in json_data["posts"]:
                         j["server_name"] = str(i.ip)
                         j["server_port"] = str(i.port)
@@ -207,7 +219,14 @@ def all_posts(request, page_num):
                                 followee_user=j["username"],
                                 server=i,
                             ).exists()
-                    post_list += json_data["posts"]
+                            if ForeignUserBlocklist.objects.filter(
+                                user=request.user,
+                                server=local_server,
+                                blocked_user=j["username"],
+                            ).exists():
+                                continue
+                        append_posts.append(j)
+                    post_list += append_posts
             except Exception as e:
                 print(e)
                 pass
@@ -778,3 +797,27 @@ def federated_posts(request):
         else:
             i["liked"] = False
     return JsonResponse({"posts": post_list})
+
+
+@login_required
+def block_user(request, server_id, username):
+    if request.user.username == username:
+        return HttpResponseRedirect(reverse("index"))
+    ForeignUserBlocklist.objects.get_or_create(
+        server=get_object_or_404(ForeignServer, id=server_id),
+        blocked_user=username,
+        user=request.user,
+    )
+    # Unfollow blocked users
+    Follower.objects.filter(
+        server__id=server_id, following_user=request.user, followee_user=username
+    ).delete()
+    return HttpResponseRedirect(reverse("index"))
+
+
+@login_required
+def unblock_user(request, server_id, username):
+    ForeignUserBlocklist.objects.filter(
+        server__id=server_id, blocked_user=username, user=request.user
+    ).delete()
+    return HttpResponseRedirect(reverse("index"))

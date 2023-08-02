@@ -46,6 +46,11 @@
                                 </button>
                             </div>
                         {% endif %}
+                        <form action="{% url 'block_user' username=post|get_item:"username" server_id=post|get_item:"server_id" %}"
+                              class="mt-2">
+                            {% csrf_token %}
+                            <input class="btn btn-sm btn-danger" type="submit" value="Block User">
+                        </form>
                         {% if post|get_item:"following" %}
                             <form action="{% url 'unfollow' username=post|get_item:"username" server_id=post|get_item:"server_id" %}"
                                   class="mt-2">

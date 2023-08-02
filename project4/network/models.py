@@ -58,3 +58,10 @@ class ForeignBlocklist(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     server = models.ForeignKey(ForeignServer, on_delete=models.CASCADE)
+
+
+class ForeignUserBlocklist(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    server = models.ForeignKey(ForeignServer, on_delete=models.CASCADE)
+    blocked_user = models.TextField()
