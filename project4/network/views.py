@@ -166,6 +166,12 @@ def all_posts(request, page_num):
                 result = requests.get(
                     "http://" + i.ip + ":" + str(i.port) + "/federation/posts",
                     timeout=5,
+                    data=json.dumps(
+                        {
+                            "username": request.user.username,
+                            "port": request.META["SERVER_PORT"],
+                        }
+                    ),
                 )
                 if result.status_code == 200:
                     json_data = json.loads(result.content)
@@ -177,9 +183,6 @@ def all_posts(request, page_num):
                             following_user=request.user,
                             followee_user=j["username"],
                             server=i,
-                        ).exists()
-                        j["liked"] = ForeignLike.objects.filter(
-                            user=request.user, server=i, post__id=j["id"]
                         ).exists()
                     post_list += json_data["posts"]
             except:
@@ -398,7 +401,7 @@ def like(request, like_post, server_id):
         )
     else:
         try:
-            result = requests.get(
+            result = requests.post(
                 "http://"
                 + server.ip
                 + ":"
@@ -406,6 +409,12 @@ def like(request, like_post, server_id):
                 + "/federation/like/"
                 + like_post,
                 timeout=5,
+                data=json.dumps(
+                    {
+                        "username": request.user.username,
+                        "port": request.META["SERVER_PORT"],
+                    }
+                ),
             )
             if result.status_code == 200:
                 return JsonResponse(json.loads(result.content))
@@ -450,7 +459,7 @@ def unlike(request, like_post, server_id):
         )
     else:
         try:
-            result = requests.get(
+            result = requests.post(
                 "http://"
                 + server.ip
                 + ":"
@@ -458,6 +467,12 @@ def unlike(request, like_post, server_id):
                 + "/federation/unlike/"
                 + like_post,
                 timeout=5,
+                data=json.dumps(
+                    {
+                        "username": request.user.username,
+                        "port": request.META["SERVER_PORT"],
+                    }
+                ),
             )
             if result.status_code == 200:
                 return JsonResponse(json.loads(result.content))
@@ -573,33 +588,32 @@ def federated_comment(request, post_id):
 
 @csrf_exempt
 def federated_like(request, post_id):
-    if request.method == "POST":
-        json_data = json.loads(request.body)
-        server = get_object_or_404(
-            ForeignServer, ip=request.get_host(), port=json_data["port"]
-        )
-        if ForeignLike.objects.filter(
+    json_data = json.loads(request.body)
+    server = get_object_or_404(
+        ForeignServer, ip=request.META.get("REMOTE_ADDR"), port=json_data["port"]
+    )
+    if not ForeignLike.objects.filter(
+        server=server,
+        user=json_data["username"],
+        post=get_object_or_404(Post, id=post_id),
+    ).exists():
+        ForeignLike.objects.create(
             server=server,
-            username=json_data["username"],
+            user=json_data["username"],
             post=get_object_or_404(Post, id=post_id),
-        ).exists():
-            ForeignLike.objects.create(
-                server=server,
-                username=json_data["username"],
-                post=get_object_or_404(Post, id=post_id),
-            )
-            return JsonResponse(
-                {
-                    "likeCount": len(ForeignLike.objects.filter(post__id=post_id)),
-                    "success": True,
-                }
-            )
+        )
         return JsonResponse(
             {
                 "likeCount": len(ForeignLike.objects.filter(post__id=post_id)),
-                "success": False,
+                "success": True,
             }
         )
+    return JsonResponse(
+        {
+            "likeCount": len(ForeignLike.objects.filter(post__id=post_id)),
+            "success": False,
+        }
+    )
 
 
 @csrf_exempt
@@ -613,33 +627,32 @@ def federated_get_likes(request):
 
 @csrf_exempt
 def federated_unlike(request, post_id):
-    if request.method == "POST":
-        json_data = json.loads(request.body)
-        server = get_object_or_404(
-            ForeignServer, ip=request.get_host(), port=json_data["port"]
-        )
-        if not ForeignLike.objects.filter(
+    json_data = json.loads(request.body)
+    server = get_object_or_404(
+        ForeignServer, ip=request.META.get("REMOTE_ADDR"), port=json_data["port"]
+    )
+    if ForeignLike.objects.filter(
+        server=server,
+        user=json_data["username"],
+        post=get_object_or_404(Post, id=post_id),
+    ).exists():
+        ForeignLike.objects.filter(
             server=server,
-            username=json_data["username"],
+            user=json_data["username"],
             post=get_object_or_404(Post, id=post_id),
-        ).exists():
-            ForeignLike.objects.filter(
-                server=server,
-                username=json_data["username"],
-                post=get_object_or_404(Post, id=post_id),
-            ).delete()
-            return JsonResponse(
-                {
-                    "likeCount": len(ForeignLike.objects.filter(post__id=post_id)),
-                    "success": True,
-                }
-            )
+        ).delete()
         return JsonResponse(
             {
                 "likeCount": len(ForeignLike.objects.filter(post__id=post_id)),
-                "success": False,
+                "success": True,
             }
         )
+    return JsonResponse(
+        {
+            "likeCount": len(ForeignLike.objects.filter(post__id=post_id)),
+            "success": False,
+        }
+    )
 
 
 @login_required
@@ -722,9 +735,19 @@ def federated_user(request, username):
 
 @csrf_exempt
 def federated_posts(request):
+    json_data = json.loads(request.body)
+    server = get_object_or_404(
+        ForeignServer, ip=request.META.get("REMOTE_ADDR"), port=json_data["port"]
+    )
     post_list = list(Post.objects.all().order_by("-timestamp").values())
     for i in post_list:
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
+        if "username" in json_data:
+            i["liked"] = ForeignLike.objects.filter(
+                server=server, user=json_data["username"], post__id=i["id"]
+            ).exists()
+        else:
+            i["liked"] = False
     return JsonResponse({"posts": post_list})
