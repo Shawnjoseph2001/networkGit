@@ -168,8 +168,6 @@ def all_posts(request, page_num):
         i["server_id"] = str(local_server.id)
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
-        for j in i["comments"]:
-            j["username"] = str(get_object_or_404(User, id=j["user_id"]).username)
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
         i["server_name"] = "local"
         i["server_port"] = ""
@@ -203,13 +201,15 @@ def all_posts(request, page_num):
                         j["server_name"] = str(i.ip)
                         j["server_port"] = str(i.port)
                         j["server_id"] = str(i.id)
-                        j["following"] = Follower.objects.filter(
-                            following_user=request.user,
-                            followee_user=j["username"],
-                            server=i,
-                        ).exists()
+                        if request.user.is_authenticated:
+                            j["following"] = Follower.objects.filter(
+                                following_user=request.user,
+                                followee_user=j["username"],
+                                server=i,
+                            ).exists()
                     post_list += json_data["posts"]
-            except:
+            except Exception as e:
+                print(e)
                 pass
 
     paginator = Paginator(post_list, 10)
@@ -604,7 +604,9 @@ def federated_comment(request, post_id):
             user=json_data["username"],
             post=get_object_or_404(Post, id=post_id),
             server=get_object_or_404(
-                ForeignServer, server=request.get_host(), port=json_data["port"]
+                ForeignServer,
+                ip=request.META.get("REMOTE_ADDR"),
+                port=json_data["port"],
             ),
         )
         return JsonResponse({"Comment": createdComment})

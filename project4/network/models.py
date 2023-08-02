@@ -42,7 +42,7 @@ class ForeignComment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.TextField()
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     server = models.ForeignKey(ForeignServer, on_delete=models.CASCADE)
 
