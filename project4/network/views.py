@@ -35,73 +35,95 @@ def index(request):
 @login_required
 def following(request, page_num):
     """
-    Fetches and displays posts from users the current user is following.
+    Fetches and displays all posts in the network, ordered by timestamp.
 
-    The function handles pagination and also provides information about liked posts and likes.
+    This function also handles pagination and provides information about liked posts and likes.
     """
-    blocked_servers = []
     local_server = get_object_or_404(ForeignServer, ip="local")
-    if request.user.is_authenticated:
-        blocked_servers = ForeignBlocklist.objects.filter(
-            user=request.user
-        ).values_list("server", flat=True)
-    # Query all users that the current user is following
-    follow_query = Follower.objects.filter(following_user=request.user)
 
-    # Extract relevant information from the follow query
-    following_users = list(follow_query.values_list("following_user", flat=True))
-
-    # Query posts from local following users
-    following_posts = list(
-        Post.objects.filter(user__in=following_users).order_by("-timestamp").values()
+    follow_list = Follower.objects.filter(
+        followee_user=request.user.username
+    ).values_list("followee_user", flat=True)
+    following_users = list(follow_list.values())
+    local_following_users = Follower.objects.filter(
+        following_user=request.user, server=local_server
+    ).values_list("followee_user", flat=True)
+    blocked_servers = ForeignBlocklist.objects.filter(user=request.user).values_list(
+        "server", flat=True
     )
-    for i in following_posts:
+
+    # Query all posts and handle pagination
+    # Count likes for each post
+    post_list = list(
+        Post.objects.filter(user__username__in=list(local_following_users))
+        .order_by("-timestamp")
+        .values()
+    )
+    for i in post_list:
         i["server_id"] = str(local_server.id)
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
+        for j in i["comments"]:
+            j["username"] = str(get_object_or_404(User, id=j["user_id"]).username)
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
         i["server_name"] = "local"
         i["server_port"] = ""
-    foreign_posts = []
+        i["liked"] = ForeignLike.objects.filter(
+            user=request.user, server=local_server, post__id=i["id"]
+        ).exists()
+        i["following"] = Follower.objects.filter(
+            following_user=request.user,
+            followee_user=i["username"],
+            server=local_server,
+        ).exists()
     for i in ForeignServer.objects.all():
-        if i not in blocked_servers and i.ip != "local":
+        if i.id not in blocked_servers and i.ip != "local":
             try:
                 result = requests.get(
                     "http://" + i.ip + ":" + str(i.port) + "/federation/posts",
                     timeout=5,
+                    data=json.dumps(
+                        {
+                            "username": request.user.username,
+                            "port": request.META["SERVER_PORT"],
+                        }
+                    ),
                 )
                 if result.status_code == 200:
                     json_data = json.loads(result.content)
+                    remotePosts = []
                     for j in json_data["posts"]:
-                        j["server_name"] = str(i.ip)
-                        j["server_port"] = str(i.port)
-                        j["server_id"] = str(i.id)
-                foreign_posts += json_data["posts"]
+                        if Follower.objects.filter(
+                            following_user=request.user,
+                            followee_user=j["username"],
+                            server=i,
+                        ).exists():
+                            j["server_name"] = str(i.ip)
+                            j["server_port"] = str(i.port)
+                            j["server_id"] = str(i.id)
+                            j["following"] = True
+                            remotePosts.append(j)
+                    post_list += remotePosts
             except:
                 pass
-    for i in foreign_posts:
-        if Follower.objects.filter(
-            following_user=request.user,
-            followee_user=i["username"],
-            server_id=i["server_id"],
-        ).exists():
-            following_posts.append(i)
+
+    paginator = Paginator(post_list, 10)
+    posts: Page = paginator.get_page(page_num)
 
     # Handle pagination
-    paginator = Paginator(following_posts, 10)
     next_page = "0"
     prev_page = "0"
     if page_num > 1:
-        prev_page = reverse("following", args=(page_num - 1,))
+        prev_page = reverse("all", args=(page_num - 1,))
     if page_num < paginator.num_pages:
-        next_page = reverse("following", args=(page_num + 1,))
+        next_page = reverse("all", args=(page_num + 1,))
 
     # Render the page
     return render(
         request,
         "network/index.html",
         {
-            "posts": following_posts,
+            "posts": posts,
             "next_page": next_page,
             "prev_page": prev_page,
             "following_users": following_users,
@@ -146,6 +168,8 @@ def all_posts(request, page_num):
         i["server_id"] = str(local_server.id)
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
+        for j in i["comments"]:
+            j["username"] = str(get_object_or_404(User, id=j["user_id"]).username)
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
         i["server_name"] = "local"
         i["server_port"] = ""
@@ -161,7 +185,7 @@ def all_posts(request, page_num):
         else:
             i["following"] = False
     for i in ForeignServer.objects.all():
-        if i not in blocked_servers and i.ip != "local":
+        if i.id not in blocked_servers and i.ip != "local":
             try:
                 result = requests.get(
                     "http://" + i.ip + ":" + str(i.port) + "/federation/posts",
@@ -541,7 +565,7 @@ def comment(request, post_id, server_id):
     """Create post comment"""
     if request.method == "POST":
         server = get_object_or_404(ForeignServer, id=server_id)
-        if server_id == "local":
+        if server == get_object_or_404(ForeignServer, ip="local"):
             ForeignComment.objects.create(
                 content=request.POST["content"],
                 user=request.user,
@@ -554,7 +578,7 @@ def comment(request, post_id, server_id):
                     "http://"
                     + server.ip
                     + ":"
-                    + server.port
+                    + str(server.port)
                     + "/federation/comment/"
                     + post_id,
                     timeout=5,
@@ -562,6 +586,7 @@ def comment(request, post_id, server_id):
                         {
                             "username": request.user.username,
                             "content": request.POST["content"],
+                            "port": request.META["SERVER_PORT"],
                         }
                     ),
                 )

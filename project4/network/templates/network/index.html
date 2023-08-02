@@ -83,7 +83,7 @@
                             {% endif %}
                         {% endif %}
                     </div>
-                    {% if user == post|get_item:"user" %}
+                    {% if user.is_authenticated %}
                         <div class="comment-panel mt-2">
                             <button class="btn btn-secondary btn-sm comment-button"
                                     id="comment-button-{{ post|get_item:"id" }}"
@@ -103,11 +103,10 @@
                     {% endif %}
                     {% for comment in post|get_item:"comments" %}
                         <div class="mt-2 border-top pt-2">
-                            <a href="{% url 'user_rd' username=post|get_item:"user" server_id=post|get_item:"server_id" %}"
-                               class="font-weight-bold text-dark">{{ comment|get_item:"user" }}</a>
+                            <a href="{% url 'user_rd' username=post|get_item:"username" server_id=post|get_item:"server_id" %}"
+                               class="font-weight-bold text-dark">{{ comment|get_item:"username" }}</a>
                             <p id="comment-content-{{ comment|get_item:"user" }}">{{ comment|get_item:"content" }}</p>
                             <small class="text-muted">{{ comment|get_item:"timestamp" }}</small>
-                            <!-- Edit button for comment if the user is the owner -->
                         </div>
                     {% endfor %}
                 </li>
