@@ -22,7 +22,8 @@ function handleLikeButtons() {
         button.addEventListener('click', async function () {
             const postId = this.dataset.postId;
             const isLiked = this.dataset.liked === 'true';
-            const url = isLiked ? `/unlike_post/${postId}` : `/like_post/${postId}`;
+            const serverId = this.dataset.server;
+            const url = isLiked ? `/unlike_post/${serverId}/${postId}` : `/like_post/${serverId}/${postId}`;
             const method = isLiked ? 'DELETE' : 'GET';
             const response = await fetch(url, {method});
             const data = await response.json();

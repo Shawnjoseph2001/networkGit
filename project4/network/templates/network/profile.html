@@ -40,7 +40,7 @@
                     </div>
 
                     <!-- Edit button for post owner -->
-                    {% if user.is_authenticated and username == post.user.username and server_id %}
+                    {% if user.is_authenticated and username == post.user.username and local_server %}
                         <div class="edit-panel mt-2">
                             <button class="btn btn-secondary btn-sm edit-button" id="edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Edit post</button>
                             <textarea class="form-control mt-2 edit-content" id="edit-content-{{ post.id }}" data-post-id="{{ post.id }}">{{ post.content }}</textarea>
