@@ -111,7 +111,7 @@
                             <a href="{% url 'user_rd' username=comment|get_item:"user" server_id=post|get_item:"server_id" %}"
                                class="font-weight-bold text-dark">{{ comment|get_item:"user" }}</a>
                             <p id="comment-content-{{ comment|get_item:"user" }}">{{ comment|get_item:"content" }}</p>
-                            <small class="text-muted">{{ comment|get_item:"timestamp_user" }}</small>
+                            <small class="text-muted">{{ comment|get_item:"timestamp" }}</small>
                         </div>
                     {% endfor %}
                 </li>

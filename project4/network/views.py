@@ -86,6 +86,12 @@ def render_index(
         i["server_id"] = str(local_server.id)
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
+        for j in i["comments"]:
+            j["timestamp"] = (
+                j["timestamp"]
+                .astimezone(datetime.timezone.utc)
+                .strftime("%b. %d, %Y, %I:%M %p")
+            )
         i["server_name"] = "local"
         i["server_port"] = ""
         i["timestamp_user"] = (
@@ -765,6 +771,11 @@ def federated_posts(request):
     for i in post_list:
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
+        for j in i["comments"]:
+            new_time = datetime.strptime(j["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ")
+            j["timestamp"] = new_time.astimezone(datetime.timezone.utc).strftime(
+                "%b. %d, %Y, %I:%M %p"
+            )
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
         i["timestamp_user"] = (
             i["timestamp"]
