@@ -26,7 +26,7 @@
                            class="font-weight-bold text-dark">{{ post|get_item:"username" }}@{{ post|get_item:"server_name" }}:{{ post|get_item:"server_port" }}</a>
                     </div>
                     <div class="mt-2">
-                        <p id="post-content-{{ post|get_item:"id" }}">{{ post|get_item:"content" }}</p>
+                        <p id="post-content-{{ post|get_item:"id" }}">{{ post|get_item:"content"|safe }}</p>
                     </div>
 
                     <!-- Edit and follow/unfollow buttons for authenticated users -->
@@ -67,7 +67,7 @@
                     {% endif %}
 
                     <!-- Post metadata and like button -->
-                    <small class="text-muted">{{ post|get_item:"timestamp" }}</small>
+                    <small class="text-muted">{{ post|get_item:"timestamp_user" }}</small>
                     <div class="d-flex align-items-center mt-2">
                         <div id="like-count-{{ post|get_item:"id" }}" class="mr-2">
                             Like Count: {{ post|get_item:"likes" }}
@@ -107,11 +107,11 @@
                         </div>
                     {% endif %}
                     {% for comment in post|get_item:"comments" %}
-                        <div class="mt-2 border-top pt-2">
+                        <div class="mt-2 border-top pt-2 ml-3 bg-light">
                             <a href="{% url 'user_rd' username=comment|get_item:"user" server_id=post|get_item:"server_id" %}"
                                class="font-weight-bold text-dark">{{ comment|get_item:"user" }}</a>
                             <p id="comment-content-{{ comment|get_item:"user" }}">{{ comment|get_item:"content" }}</p>
-                            <small class="text-muted">{{ comment|get_item:"timestamp" }}</small>
+                            <small class="text-muted">{{ comment|get_item:"timestamp_user" }}</small>
                         </div>
                     {% endfor %}
                 </li>

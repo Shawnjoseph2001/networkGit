@@ -14,54 +14,114 @@
                 </div>
 
                 <!-- Follow / Unfollow Button -->
-                {% if user_following %}
-                    <form action="{% url 'unfollow' username=username server_id=server_id %}" class="mx-auto">
-                        {% csrf_token %}
-                        <input class="btn btn-primary" type="submit" value="Unfollow User">
-                    </form>
-                {% else %}
-                    <form action="{% url 'follow' username=username server_id=server_id %}" class="mx-auto">
-                        {% csrf_token %}
-                        <input class="btn btn-primary" type="submit" value="Follow User">
-                    </form>
+                {% if user.is_authenticated %}
+                    {% if user_following %}
+                        <form action="{% url 'unfollow' username=username server_id=server_id %}" class="mx-auto">
+                            {% csrf_token %}
+                            <input class="btn btn-primary" type="submit" value="Unfollow User">
+                        </form>
+                    {% else %}
+                        <form action="{% url 'follow' username=username server_id=server_id %}" class="mx-auto">
+                            {% csrf_token %}
+                            <input class="btn btn-primary" type="submit" value="Follow User">
+                        </form>
+                    {% endif %}
+                    {% if not_self %}
+                        {% if blocked %}
+                            <form action="{% url 'unblock_user' username=username server_id=server_id %}"
+                                  class="mt-2">
+                                {% csrf_token %}
+                                <input class="btn btn-sm btn-danger" type="submit" value="Unblock User">
+                            </form>
+                        {% else %}
+                            <form action="{% url 'block_user' username=username server_id=server_id %}"
+                                  class="mt-2">
+                                {% csrf_token %}
+                                <input class="btn btn-sm btn-danger" type="submit" value="Block User">
+                            </form>
+                        {% endif %}
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
 
-        <!-- Posts list -->
+        <!-- Posts display -->
         <ul class="list-unstyled">
             {% for post in posts %}
                 <li class="border-bottom mb-3 pb-3">
                     <div>
-                        <a href="{% url 'user_rd' username=post|get_item:"username" server_id=server_id %}" class="font-weight-bold text-dark">{{ post|get_item:"username" }}</a>
+                        <a href="{% url 'user_rd' username=post|get_item:"username" server_id=post|get_item:"server_id" %}"
+                           class="font-weight-bold text-dark">{{ post|get_item:"username" }}</a>
                     </div>
                     <div class="mt-2">
-                        <p id="post-content-{{post|get_item:"id"}}">{{ post|get_item:"content" }}</p>
+                        <p id="post-content-{{ post|get_item:"id" }}">{{ post|get_item:"content" | safe }}</p>
                     </div>
-
-                    <!-- Edit button for post owner -->
-                    {% if user.is_authenticated and username == post.user.username and local_server %}
+                    <!-- Edit button for authenticated users -->
+                    {% if not not_self %}
                         <div class="edit-panel mt-2">
-                            <button class="btn btn-secondary btn-sm edit-button" id="edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Edit post</button>
-                            <textarea class="form-control mt-2 edit-content" id="edit-content-{{ post.id }}" data-post-id="{{ post.id }}">{{ post.content }}</textarea>
-                            <button class="btn btn-primary btn-sm mt-2 submit-edit-button" id="submit-edit-button-{{ post.id }}" data-post-id="{{ post.id }}">Save post</button>
+                            <button class="btn btn-secondary btn-sm edit-button"
+                                    id="edit-button-{{ post|get_item:"id" }}"
+                                    data-post-id="{{ post|get_item:"id" }}">Edit post
+                            </button>
+                            <textarea class="form-control mt-2 edit-content"
+                                      id="edit-content-{{ post|get_item:"id" }}"
+                                      data-post-id="{{ post|get_item:"id" }}">{{ post.content }}</textarea>
+                            <button class="btn btn-primary btn-sm mt-2 submit-edit-button"
+                                    id="submit-edit-button-{{ post|get_item:"id" }}"
+                                    data-post-id="{{ post|get_item:"id" }}">Save post
+                            </button>
                         </div>
                     {% endif %}
 
+
                     <!-- Post metadata and like button -->
-                    <small class="text-muted">{{ post.timestamp }}</small>
+                    <small class="text-muted">{{ post|get_item:"timestamp" }}</small>
                     <div class="d-flex align-items-center mt-2">
-                        <div id="like-count-{{ post.id }}" class="mr-2">
-                            Like Count: {{ post|get_item:"likes"}}
+                        <div id="like-count-{{ post|get_item:"id" }}" class="mr-2">
+                            Like Count: {{ post|get_item:"likes" }}
                         </div>
                         {% if user.is_authenticated %}
-                            {% if post.id in liked_posts %}
-                                <button class="btn btn-primary btn-sm like-button" id="like-button-{{ post.id }}" data-post-id="{{ post.id }}" data-liked="true">Unlike post</button>
+                            {% if post|get_item:"liked" %}
+                                <button class="btn btn-primary btn-sm like-button"
+                                        id="like-button-{{ post|get_item:"id" }}"
+                                        data-post-id="{{ post|get_item:"id" }}" data-liked="true"
+                                        data-server="{{ server_id }}">Unlike post
+                                </button>
                             {% else %}
-                                <button class="btn btn-outline-primary btn-sm like-button" id="like-button-{{ post.id }}" data-post-id="{{ post.id }}" data-liked="false">Like post</button>
+                                <button class="btn btn-outline-primary btn-sm like-button"
+                                        id="like-button-{{ post|get_item:"id" }}"
+                                        data-post-id="{{ post|get_item:"id" }}" data-liked="false"
+                                        data-server="{{ server_id }}">Like post
+                                </button>
                             {% endif %}
                         {% endif %}
                     </div>
+                    {% if user.is_authenticated %}
+                        <div class="comment-panel mt-2">
+                            <button class="btn btn-secondary btn-sm comment-button"
+                                    id="comment-button-{{ post|get_item:"id" }}"
+                                    data-post-id="{{ post|get_item:"id" }}">Leave Comment
+                            </button>
+                            <form action="{% url 'comment' post_id=post|get_item:"id" server_id=server_id %}"
+                                  class="mt-2 comment-form" method="POST">
+                                {% csrf_token %}
+                                <textarea class="form-control mt-2 comment-content"
+                                          id="comment-content-{{ post|get_item:"id" }}" name="content"></textarea>
+                                <button class="btn btn-primary btn-sm mt-2 submit-comment-button"
+                                        id="submit-comment-button-{{ post|get_item:"id" }}"
+                                        data-post-id="{{ post|get_item:"id" }}" type="submit">Save Comment
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+                    {% for comment in post|get_item:"comments" %}
+                        <div class="mt-2 border-top pt-2 ml-3 bg-light">
+                            <a href="{% url 'user_rd' username=comment|get_item:"user" server_id=server_id %}"
+                               class="font-weight-bold text-dark">{{ comment|get_item:"user" }}</a>
+                            <p id="comment-content-{{ comment|get_item:"user" }}">{{ comment|get_item:"content" }}</p>
+                            <small class="text-muted">{{ comment|get_item:"timestamp" }}</small>
+                        </div>
+                    {% endfor %}
                 </li>
             {% endfor %}
         </ul>
@@ -93,5 +153,5 @@
 
     {% block script %}
         <script src="{% static 'network/script.js' %}"></script>
-    {%  endblock %}
+    {% endblock %}
 {% endblock %}
