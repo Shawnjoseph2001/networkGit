@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.syndication.views import Feed
+from django.core import serializers
 from django.core.paginator import Paginator, Page
 from django.db import IntegrityError
 from django.http import HttpResponseRedirect
@@ -177,6 +178,7 @@ def render_index(
                 ).utctimetuple()
             )
         ),
+        reverse=True,
     )
     paginator = Paginator(sorted_post_list, 10)
     posts: Page = paginator.get_page(page_num)
@@ -610,7 +612,7 @@ def federated_comment(request, post_id):
                 port=json_data["port"],
             ),
         )
-        return JsonResponse({"Comment": createdComment})
+        return JsonResponse({"Comment": serializers.serialize("json", createdComment)})
     return JsonResponse({})
 
 
@@ -772,9 +774,10 @@ def federated_posts(request):
         i["likes"] = len(ForeignLike.objects.filter(post__id=i["id"]))
         i["comments"] = list(ForeignComment.objects.filter(post__id=i["id"]).values())
         for j in i["comments"]:
-            new_time = datetime.strptime(j["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ")
-            j["timestamp"] = new_time.astimezone(datetime.timezone.utc).strftime(
-                "%b. %d, %Y, %I:%M %p"
+            j["timestamp"] = (
+                j["timestamp"]
+                .astimezone(datetime.timezone.utc)
+                .strftime("%b. %d, %Y, %I:%M %p")
             )
         i["username"] = str(get_object_or_404(User, id=i["user_id"]).username)
         i["timestamp_user"] = (
