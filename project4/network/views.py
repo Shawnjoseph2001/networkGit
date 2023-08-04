@@ -29,16 +29,47 @@ from .models import (
 
 
 def superuser_check(user_check):
+    """
+    Checks if the provided user is a superuser.
+
+    This function takes a User object as input and returns  if the user is a superuser
+    Parameters:
+    user_check (User): The user to check for superuser status.
+
+    Returns:
+    bool: True if the user is a superuser, False otherwise."""
     return user_check.is_superuser
 
 
 def index(request):
-    """Redirect to the 'all' route."""
+    """
+    Handles requests for the index page and redirects to the 'all' route.
+
+    This function handles incoming HTTP requests for the website's index page and redirects them to 'all'
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+
+    Returns:
+    HttpResponseRedirect: A redirect response to the 'all' route.
+    """
     return HttpResponseRedirect(reverse("all"))
 
 
 @login_required
 def following(request, page_num):
+    """
+    Handles requests for posts from followed users and renders them on the index page.
+
+    This function fetches posts from users that the current authenticated user is following.
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    page_num (int): The page number for pagination.
+
+    Returns:
+    HttpResponse: A response with the rendered index page including the requested posts from followed users.
+    """
     return render_index(request, "following", following_only=True, page_num=page_num)
 
 
@@ -46,9 +77,20 @@ def render_index(
     request, page_view_name, posts_contains=None, following_only=False, page_num=1
 ):
     """
-    Fetches and displays all posts in the network, ordered by timestamp.
+    Renders the index page with posts and relevant data.
 
-    This function also handles pagination and provides information about liked posts and likes.
+    This function fetches posts based on various conditions, handles pagination, and renders the 'network/index.html'
+    template with the context containing posts and pagination data.
+
+    Parameters:
+    request (HttpRequest): Django request object
+    page_view_name (str): Name of the page view
+    posts_contains (str, optional): Filter string for posts. Defaults to None.
+    following_only (bool, optional): If true, only display posts from followed users. Defaults to False.
+    page_num (int, optional): The number of the page to display. Defaults to 1.
+
+    Returns:
+    HttpResponse: Rendered page
     """
     blocked_servers = []
     if request.user.is_authenticated:
@@ -160,7 +202,7 @@ def render_index(
                             )
                             or (
                                 posts_contains is not None
-                                and posts_contains not in str(i)
+                                and posts_contains not in str(j)
                             )
                         ):
                             continue
@@ -204,6 +246,18 @@ def render_index(
 
 
 def all_posts(request, page_num=1):
+    """
+    Handles requests for all posts and renders them on the index page.
+
+    This function fetches all posts and sends them to be rendered on the index page.
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    page_num (int, optional): The page number for pagination. Defaults to 1.
+
+    Returns:
+    HttpResponse: A response with the rendered index page including the requested posts.
+    """
     return render_index(request, page_view_name="all", page_num=page_num)
 
 
@@ -263,10 +317,22 @@ def register(request):
 @login_required
 def post(request):
     """
-    Creates a new post associated with the current user and redirects to the index page.
+    Handles creating a new post by the currently authenticated user and redirecting to the index page.
+
+    This function creates a new post when the HTTP request method is POST.
+    If the request method is not POST, it renders a page for creating a post.
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+
+    Returns:
+    HttpResponseRedirect: If the post is successfully created, it redirects to the index page.
+    HttpResponse: If the request method is not POST, it renders the page for creating a new post.
     """
+
     if request.method == "POST":
         content_str = request.POST["content"]
+        # Replace hashtags with links and spoilertext with spoilers
         if "#" in content_str:
             new_string = ""
             for i in request.POST["content"].split(" "):
@@ -297,7 +363,20 @@ def post(request):
 
 
 def user(request, username, server_id, page_num=1):
-    """Handles requests for a specific user's posts, along with their profile info"""
+    """
+    Display a user's profile page including their posts and profile info.
+
+    This function fetches a user's posts along with their profile information..
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    username (str): The username of the user to fetch the profile of.
+    server_id (str): The id of the server where the user is located.
+    page_num (int): The number of the page to be displayed (default is 1).
+
+    Returns:
+    HttpResponse: The HTTP response rendering the user's profile page.
+    """
     local_server = get_object_or_404(ForeignServer, ip="local")
     if server_id == "local":
         server = local_server
@@ -385,7 +464,19 @@ def user(request, username, server_id, page_num=1):
 @csrf_exempt
 @login_required
 def like(request, like_post, server_id):
-    """Handles like action for a post."""
+    """
+    Handle the process of liking a post.
+
+    This function allows the currently authenticated user to like a post.
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    like_post (int): The id of the post to be liked.
+    server_id (str): The id of the server where the post is located.
+
+    Returns:
+    JsonResponse: A JSON response containing the updated count of likes for the post and the success status.
+    """
     if server_id == "local":
         server = get_object_or_404(ForeignServer, ip="local")
     else:
@@ -423,11 +514,24 @@ def like(request, like_post, server_id):
 @csrf_exempt
 @login_required
 def unlike(request, like_post, server_id):
-    """Handles unlike action for a post."""
+    """
+    Handle the process of unliking a post.
+
+    This function allows the currently authenticated user to unlike a post.
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    like_post (int): The id of the post to be unliked.
+    server_id (str): The id of the server where the post is located.
+
+    Returns:
+    JsonResponse: A JSON response containing the updated count of likes for the post and the success status.
+    """
     if server_id == "local":
         server = get_object_or_404(ForeignServer, ip="local")
     else:
         server = get_object_or_404(ForeignServer, id=server_id)
+    # If the server is local, handle the unlike operation locally.
     if server.ip == "local":
         like_post = get_object_or_404(Post, id=like_post)
         likes = ForeignLike.objects.filter(
@@ -439,6 +543,7 @@ def unlike(request, like_post, server_id):
             success = True
         like_count = len(ForeignLike.objects.filter(post=like_post))
         return JsonResponse({"likeCount": like_count, "success": success})
+    # If the server is not local, send an HTTP request to the foreign server to handle the unlike operation.
     else:
         try:
             result = requests.post(
@@ -455,41 +560,88 @@ def unlike(request, like_post, server_id):
                 return JsonResponse(json.loads(result.content))
         except requests.exceptions.Timeout:
             pass
+        # If the request is not successful or it times out, return a JSON response with success set to False.
         return JsonResponse({"success": False})
 
 
 @csrf_exempt
 @login_required
 def edit(request, edit_post):
-    """Handles editing a post by the current authenticated user."""
+    """
+    Handle the process of editing a post.
+
+    This function allows the currently authenticated user to edit a post if the user is the author of the post.
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    edit_post (int): The id of the post to be edited.
+
+    Returns:
+    JsonResponse: A JSON response containing the updated content of the post.
+    """
+
     edit_post = get_object_or_404(Post, id=edit_post)
+
     if request.method == "POST" and request.user == edit_post.user:
+        # Parse the request body as JSON and update the content of the post.
         json_data = json.loads(request.body)
         edit_post.content = json_data["content"]
+
+        # Save the changes to the database.
         edit_post.save()
+
+    # Return the updated content of the post as a JSON response.
     return JsonResponse({"content": edit_post.content})
 
 
 @login_required
 def follow(request, username, server_id):
-    """Allows the current user to follow another user."""
+    """
+    Handle the process of following a user.
+
+    This function allows the current user to follow another user based on their username
+    and the server they belong to.
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    username (str): The username of the user to be followed.
+    server_id (int): The id of the ForeignServer object where the user to be followed belongs.
+
+    Returns:
+    HttpResponseRedirect: Redirects the user to the index page after the follow operation.
+    """
+
     Follower.objects.get_or_create(
         following_user=request.user,
         followee_user=username,
         server=get_object_or_404(ForeignServer, id=server_id),
     )
+
+    # Redirect the user to the index page.
     return HttpResponseRedirect(reverse("index"))
 
 
 @login_required
 def unfollow(request, username, server_id):
-    """Allows the current user to unfollow another user."""
+    """
+    Handle the process of unfollowing a user.
+
+    This function allows the current user to unfollow another user
+
+    Parameters:
+    request (WSGIRequest): The incoming HTTP request.
+    username (str): The username of the user to be unfollowed.
+    server_id (int): The id of the ForeignServer object where the user to be unfollowed belongs.
+
+    Returns:
+    HttpResponseRedirect: Redirects the user to the index page after the unfollow operation.
+    """
     follower_to_delete = get_object_or_404(
         Follower,
         following_user=request.user,
         followee_user=username,
         server=get_object_or_404(ForeignServer, id=server_id),
     )
+    # Delete the fetched Follower object, effectively unfollowing the user.
     follower_to_delete.delete()
     return HttpResponseRedirect(reverse("index"))
 
@@ -499,9 +651,7 @@ def comment(request, post_id, server_id):
     """
     Handle the creation of a comment for a given post.
 
-    This function creates a new comment for a specific post. The comment is either created
-    locally if the post is from the local server or a POST request is sent to the foreign
-    server with the comment content if the post is from a foreign server.
+    This function creates a new comment for a specific post. .
 
     Parameters:
     request (WSGIRequest): The incoming HTTP request. It should be a POST request with the content of the comment.
@@ -859,10 +1009,11 @@ def federated_user(request, username):
     # Loop through each post in the post list.
     for i in posts:
         # Add 'likes' field to the post which contains the count of likes the post has received.
+        i["comments"] = ForeignComment.objects.filter(post=i["id"])
         i["likes"] = len(ForeignLike.objects.filter(post=i["id"]))
         if "username" in json_data:
             i["liked"] = ForeignLike.objects.filter(
-                user=json_data["username"],
+                user=json_data["user"],
                 server=request_server,
                 post=get_object_or_404(Post, id=i["id"]),
             ).exists()
