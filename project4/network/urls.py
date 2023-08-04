@@ -15,7 +15,7 @@ urlpatterns = [
     ),
     path("follow/<str:server_id>/<str:username>", views.follow, name="follow"),
     path("unfollow/<str:server_id>/<str:username>", views.unfollow, name="unfollow"),
-    path("user/<str:server_id>/<str:username>", views.user_rd, name="user_rd"),
+    path("user/<str:server_id>/<str:username>", views.user, name="user"),
     path("user/<str:server_id>/<str:username>/<int:page_num>", views.user, name="user"),
     path("all", views.all_posts, name="all"),
     path("following", views.following, name="following"),

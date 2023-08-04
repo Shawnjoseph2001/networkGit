@@ -22,7 +22,7 @@
             {% for post in posts %}
                 <li class="border-bottom mb-3 pb-3">
                     <div>
-                        <a href="{% url 'user_rd' username=post|get_item:"username" server_id=post|get_item:"server_id" %}"
+                        <a href="{% url 'user' username=post|get_item:"username" server_id=post|get_item:"server_id" %}"
                            class="font-weight-bold text-dark">{{ post|get_item:"username" }}@{{ post|get_item:"server_name" }}:{{ post|get_item:"server_port" }}</a>
                     </div>
                     <div class="mt-2">
@@ -108,7 +108,7 @@
                     {% endif %}
                     {% for comment in post|get_item:"comments" %}
                         <div class="mt-2 border-top pt-2 ml-3 bg-light">
-                            <a href="{% url 'user_rd' username=comment|get_item:"user" server_id=post|get_item:"server_id" %}"
+                            <a href="{% url 'user' username=comment|get_item:"user" server_id=post|get_item:"server_id" %}"
                                class="font-weight-bold text-dark">{{ comment|get_item:"user" }}</a>
                             <p id="comment-content-{{ comment|get_item:"user" }}">{{ comment|get_item:"content" }}</p>
                             <small class="text-muted">{{ comment|get_item:"timestamp" }}</small>
