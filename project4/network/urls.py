@@ -56,6 +56,11 @@ urlpatterns = [
         views.unblock_user,
         name="block_user",
     ),
+    path(
+        "federation/user/<str:username>",
+        views.federated_user,
+        name="federated_user",
+    ),
     path("federation/unblock_server", views.unblock_server, name="unblock_server"),
     path("federation/rss", views.RSSFeed(), name="rss"),
     path("search", views.search, name="search"),
