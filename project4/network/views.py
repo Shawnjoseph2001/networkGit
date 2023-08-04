@@ -304,17 +304,11 @@ def user(request, username, server_id, page_num=1):
     else:
         server = get_object_or_404(ForeignServer, id=server_id)
     user_following = False
-    liked_posts = []
     if request.user.is_authenticated:
         followers_filter = Follower.objects.filter(
             following_user=request.user, followee_user=username, server=server
         )
         user_following = followers_filter.exists()
-        liked_posts = list(
-            ForeignLike.objects.filter(user=request.user).values_list(
-                "post__id", flat=True
-            )
-        )
     followers = len(Follower.objects.filter(server=server, followee_user=username))
     if server == local_server:
         request_user = get_object_or_404(User, username=username)
@@ -324,6 +318,9 @@ def user(request, username, server_id, page_num=1):
         following_users = len(Follower.objects.filter(followee_user=request_user))
         for i in posts:
             i["likes"] = len(ForeignLike.objects.filter(post=i["id"]))
+            i["liked"] = ForeignLike.objects.filter(
+                post=i["id"], user=request.user.username, server=local_server
+            )
             i["username"] = request_user.username
             i["comments"] = list(
                 ForeignComment.objects.filter(
@@ -335,7 +332,9 @@ def user(request, username, server_id, page_num=1):
             result = requests.get(
                 url=f"http://{server.ip}:{server.port}/federation/user/{username}",
                 timeout=5,
-                data=json.dumps({"port": request.META["SERVER_PORT"]}),
+                data=json.dumps(
+                    {"port": request.META["SERVER_PORT"], "user": request.user.username}
+                ),
             )
             json_response = json.loads(result.content)
             followers += json_response["followers"]
@@ -376,7 +375,6 @@ def user(request, username, server_id, page_num=1):
             "followers": followers,
             "following": following_users,
             "user_following": user_following,
-            "liked_posts": liked_posts,
             "server_id": server_id,
             "local_server": server.ip == "local",
             "not_self": server != local_server or request.user.username != username,
@@ -840,6 +838,10 @@ def federated_user(request, username):
     """
 
     # Fetch the User object for the given username. If no such user exists, raise a 404 error.
+    json_data = json.loads(request.body)
+    request_server = get_object_or_404(
+        ForeignServer, ip=request.get_host().split(":")[0], port=json_data["port"]
+    )
     request_user = get_object_or_404(User, username=username)
 
     # Fetch the posts made by the requested user, ordered by timestamp.
@@ -858,7 +860,14 @@ def federated_user(request, username):
     for i in posts:
         # Add 'likes' field to the post which contains the count of likes the post has received.
         i["likes"] = len(ForeignLike.objects.filter(post=i["id"]))
-
+        if "username" in json_data:
+            i["liked"] = ForeignLike.objects.filter(
+                user=json_data["username"],
+                server=request_server,
+                post=get_object_or_404(Post, id=i["id"]),
+            ).exists()
+        else:
+            i["liked"] = False
         # Add 'username' field to the post which contains the username of the post's author.
         i["username"] = request_user.username
 
